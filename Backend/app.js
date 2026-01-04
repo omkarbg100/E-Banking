@@ -10,6 +10,7 @@ const qrRoutes = require("./Routes/qrRoutes");
 
 
 
+
 const app = express();
 
 // Middlewares

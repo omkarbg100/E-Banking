@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { login } from "../../api/auth.api";
+import { useAuth } from "../../context/AuthContext";
 
 const Login = () => {
   const [form, setForm] = useState({
@@ -7,20 +9,40 @@ const Login = () => {
     password: "",
   });
 
+  const [error, setError] = useState("");
+
+  const { setUser, loading, setLoading } = useAuth(); // ✅ CONTEXT
+  const navigate = useNavigate();
+
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login Data:", form);
-    // TODO: connect backend auth
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await login(form);
+
+      // ✅ Store token
+      localStorage.setItem("token", res.data.token);
+
+      // ✅ Update global auth state
+      setUser(res.data.user);
+
+      navigate("/dashboard");
+    } catch (err) {
+      setError(err.response?.data?.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="w-full max-w-md bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
-
-      {/* Title */}
       <h2 className="text-2xl font-bold text-center mb-2">
         Login to <span className="text-cyan-400">E-Banking</span>
       </h2>
@@ -28,10 +50,13 @@ const Login = () => {
         Welcome back! Please enter your credentials.
       </p>
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {error && (
+        <div className="mb-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+          {error}
+        </div>
+      )}
 
-        {/* Email */}
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div>
           <label className="text-sm text-white/70">Email</label>
           <input
@@ -40,13 +65,11 @@ const Login = () => {
             value={form.email}
             onChange={handleChange}
             required
-            placeholder="you@example.com"
             className="mt-1 w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/10
-              text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            text-white focus:ring-2 focus:ring-cyan-400"
           />
         </div>
 
-        {/* Password */}
         <div>
           <label className="text-sm text-white/70">Password</label>
           <input
@@ -55,34 +78,38 @@ const Login = () => {
             value={form.password}
             onChange={handleChange}
             required
-            placeholder="••••••••"
             className="mt-1 w-full px-4 py-3 rounded-xl bg-slate-900/80 border border-white/10
-              text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            text-white focus:ring-2 focus:ring-cyan-400"
           />
         </div>
 
-        {/* Forgot */}
         <div className="flex justify-end text-sm">
-          <Link to="#" className="text-cyan-400 hover:underline">
+          <Link
+            to="/starting/forgot-password"
+            className="text-cyan-400 hover:underline"
+          >
             Forgot password?
           </Link>
         </div>
 
-        {/* Submit */}
         <button
           type="submit"
+          disabled={loading}
           className="mt-2 py-3 rounded-xl font-semibold
             bg-linear-to-r from-cyan-400 to-sky-400
-            text-slate-900 hover:scale-[1.02] transition shadow-lg"
+            text-slate-900 shadow-lg hover:scale-[1.02]
+            disabled:opacity-60"
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </form>
 
-      {/* Footer */}
       <p className="text-center text-sm text-white/60 mt-6">
         Don’t have an account?{" "}
-        <Link to="/starting/signup" className="text-cyan-400 font-medium hover:underline">
+        <Link
+          to="/starting/signup"
+          className="text-cyan-400 font-medium hover:underline"
+        >
           Sign up
         </Link>
       </p>
@@ -91,3 +118,4 @@ const Login = () => {
 };
 
 export default Login;
+

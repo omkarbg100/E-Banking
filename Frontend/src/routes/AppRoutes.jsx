@@ -5,6 +5,7 @@ import Home from "../pages/Home";
 import Starting from "../pages/Starting";
 import Login from "../components/Starting/Login";
 import Signup from "../components/Starting/Signup";
+import ForgotPassword from "../components/Starting/ForgotPassword";
 
 import Dashboard from "../pages/Dashboard";
 import ServicesPage from "../pages/Services";
@@ -27,17 +28,18 @@ export default function AppRoutes() {
         <Route path="/starting" element={<Starting />}>
           <Route path="login" element={<Login />} />
           <Route path="signup" element={<Signup />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
         </Route>
 
         {/* Protected */}
-        <Route
-          path="/dashboard"
-          element={
+        <Route path="/dashboard" element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
           }
-        />
+        >
+          
+        </Route>
 
         {/* 404 */}
         <Route
