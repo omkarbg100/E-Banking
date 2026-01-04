@@ -6,6 +6,8 @@ import Starting from "../pages/Starting";
 import Login from "../components/Starting/Login";
 import Signup from "../components/Starting/Signup";
 import ForgotPassword from "../components/Starting/ForgotPassword";
+import CreateAccount from "../components/Dashboard/CreateAccount";
+import AccountDetails from "../components/Dashboard/AccountsDetails";
 
 import Dashboard from "../pages/Dashboard";
 import ServicesPage from "../pages/Services";
@@ -32,26 +34,41 @@ export default function AppRoutes() {
         </Route>
 
         {/* Protected */}
-        <Route path="/dashboard" element={
+        <Route
+          path="/dashboard"
+          element={
             <ProtectedRoute>
               <Dashboard />
             </ProtectedRoute>
           }
-        >
-          
-        </Route>
+        />
+        <Route
+          path="/dashboard/accounts/create"
+          element={
+            <ProtectedRoute>
+              <CreateAccount />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Account Details - Protected */}
+        <Route
+          path="/accounts/:accountId"
+          element={
+            <ProtectedRoute>
+              <AccountDetails />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 404 */}
         <Route
           path="*"
           element={
-            <h1 className="text-center mt-20 text-xl font-semibold">
-              404 | Page Not Found
-            </h1>
+            <Home />
           }
         />
       </Routes>
     </BrowserRouter>
   );
 }
-

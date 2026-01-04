@@ -17,7 +17,7 @@ const role = require("../Middleware/roleMiddleware");
 
 // Create new account
 router.post("/create", auth, role("USER"), createAccount);
-router.get("/me", auth, role("USER"), getMyAccountList);
+router.get("/me/accountLists", auth, role("USER"), getMyAccountList);
 router.get("/me/:accountNumber", auth, role("USER"), getMyAccount);
 
 // ADMIN ROUTES
