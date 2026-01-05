@@ -9,6 +9,10 @@ import ForgotPassword from "../components/Starting/ForgotPassword";
 import CreateAccount from "../components/Dashboard/CreateAccount";
 import AccountDetails from "../components/Dashboard/AccountsDetails";
 
+import Transaction from "../components/Transactions/Transaction";
+import ScanQR from "../components/Transactions/ScanQR";
+import TransactionSuccess from "../components/Transactions/TransactionSuccess";
+
 import Dashboard from "../pages/Dashboard";
 import ServicesPage from "../pages/Services";
 import AboutPage from "../pages/About";
@@ -60,6 +64,11 @@ export default function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        <Route path="/scan-qr" element={<ProtectedRoute><ScanQR /></ProtectedRoute>} />
+
+        <Route path="/transactions" element={<ProtectedRoute><Transaction /></ProtectedRoute>} />
+        <Route path="/transactions/success" element={<ProtectedRoute><TransactionSuccess /></ProtectedRoute>} />
 
         {/* 404 */}
         <Route

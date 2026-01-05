@@ -1,23 +1,68 @@
-import axios from '../utils/axiosInstance'
+import axios from "axios";
 
-const PORT=  "http://localhost:5000/api"
+const BASE_URL = "http://localhost:5000/api";
 
-export const emailOTP = (data) => axios.post(`${PORT}/user/send-register-otp`, data)
-export const verifyOTP = (data) => axios.post(`${PORT}/user/verify-register-otp`, data)
-export const register = (data) => axios.post(`${PORT}/user/register`, data)
+/* ================= TOKEN HELPER ================= */
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return {
+    headers: {
+      Authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+};
 
+/* ================= AUTH ================= */
+export const emailOTP = (data) =>
+  axios.post(`${BASE_URL}/user/send-register-otp`, data);
 
-export const login = (data) => axios.post(`${PORT}/user/login`, data)
+export const verifyOTP = (data) =>
+  axios.post(`${BASE_URL}/user/verify-register-otp`, data);
 
-export const forgotPassword = (data) => axios.post(`${PORT}/user/forgot-password`, data);
+export const register = (data) =>
+  axios.post(`${BASE_URL}/user/register`, data);
 
-export const resetPassword = (data) => axios.post(`${PORT}/user/reset-password`, data);
+export const login = (data) =>
+  axios.post(`${BASE_URL}/user/login`, data);
 
+export const forgotPassword = (data) =>
+  axios.post(`${BASE_URL}/user/forgot-password`, data);
 
+export const resetPassword = (data) =>
+  axios.post(`${BASE_URL}/user/reset-password`, data);
 
+// Logged-in user reset password
+export const resetPasswordLoggedIn = (data) =>
+  axios.post(
+    `${BASE_URL}/user/reset-password-logged-in`,
+    data,
+    getAuthHeaders()
+  );
 
-// Protected route - Reset password while logged in
-export const resetPasswordLoggedIn = (data) => axios.post(`${PORT}/user/reset-password-logged-in`, data);
+/* ================= ACCOUNTS ================= */
+export const getMyAccounts = () =>
+  axios.get(
+    `${BASE_URL}/accounts/me/accountLists`,
+    getAuthHeaders()
+  );
 
-export const getMyAccounts=()=> axios.get(`${PORT}/accounts/me/accountLists`);
-export const createAccount=(data)=> axios.post(`${PORT}/accounts/create`,data);
+export const createAccount = (data) =>
+  axios.post(
+    `${BASE_URL}/accounts/create`,
+    data,
+    getAuthHeaders()
+  );
+
+/* ================= TRANSACTIONS ================= */
+export const transferMoney = (data) =>
+  axios.post(
+    `${BASE_URL}/transactions/transfer`,
+    data,
+    getAuthHeaders()
+  );
+
+export const getMyTransactions = () =>
+  axios.get(
+    `${BASE_URL}/transactions/me`,
+    getAuthHeaders()
+  );

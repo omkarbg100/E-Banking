@@ -16,18 +16,53 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-950 text-white px-6 py-8">
       {/* ================= HEADER ================= */}
       <div className="flex items-center justify-between mb-10">
-        <div>
-          <h2 className="text-2xl font-bold">
-            Hi, <span className="text-cyan-400">{user?.name}</span>
-          </h2>
-          <p className="text-white/60 text-sm">Your banking dashboard</p>
+        {/* LEFT: Profile */}
+        <div className="flex items-center gap-4">
+          {/* Avatar */}
+          <div className="w-12 h-12 rounded-full bg-cyan-400/20 flex items-center justify-center text-cyan-400 font-bold text-lg">
+            {user?.name?.charAt(0).toUpperCase() || "U"}
+          </div>
+
+          {/* User Info */}
+          <div>
+            <h2 className="text-lg font-semibold leading-tight">
+              Hi, <span className="text-cyan-400">{user?.name}</span>
+            </h2>
+            <p className="text-white/60 text-sm">Your banking dashboard</p>
+          </div>
         </div>
 
+        {/* RIGHT: Scan QR */}
         <button
-          onClick={logout}
-          className="px-4 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30"
+          onClick={() => navigate("/scan-qr")}
+          className="
+      flex items-center gap-2
+      px-4 py-2
+      rounded-xl
+      bg-linear-to-r from-cyan-400 to-sky-400
+      text-slate-900
+      font-semibold
+      shadow-lg
+      hover:scale-[1.03]
+      transition
+    "
         >
-          Logout
+          {/* QR Icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 3h5v5H3V3zM16 3h5v5h-5V3zM3 16h5v5H3v-5zM16 16h2v2h-2v-2zM20 16h1v1h-1v-1zM16 20h5v1h-5v-1zM20 20h1v1h-1v-1zM9 3h1v5H9V3zM3 9h5v1H3V9zM9 9h1v1H9V9zM9 11h5v1H9v-1zM9 13h1v1H9v-1zM11 9h1v5h-1V9zM13 9h1v1h-1V9zM13 11h5v1h-5v-1zM13 13h1v1h-1v-1zM9 16h1v5H9v-5z"
+            />
+          </svg>
+          Scan QR
         </button>
       </div>
 
@@ -44,7 +79,9 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {loadingAccounts && <p className="text-white/60">Loading accounts...</p>}
+        {loadingAccounts && (
+          <p className="text-white/60">Loading accounts...</p>
+        )}
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
         {/* NORMAL GRID – NO CENTERING */}
@@ -87,6 +124,23 @@ export default function Dashboard() {
 
         {/* FLEX + WRAP (LIKE GPay) */}
         <div className="flex flex-wrap gap-4">
+          <div
+            onClick={() => navigate("/transactions")}
+            className="
+    min-w-37.5
+    rounded-xl
+    bg-white/5
+    border border-white/10
+    p-4
+    text-center
+    hover:bg-white/10
+    transition
+    cursor-pointer
+  "
+          >
+            <p className="text-sm font-medium">Transfer Money</p>
+          </div>
+
           {[
             "Mobile Recharge",
             "DTH Recharge",
