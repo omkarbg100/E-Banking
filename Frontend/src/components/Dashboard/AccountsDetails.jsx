@@ -73,7 +73,7 @@ export default function AccountDetails() {
         </h2>
 
         <p className="text-slate-400 text-sm mb-4">
-          Account No: ****{account.accountNumber.slice(-4)}
+          Account No: {account.accountNumber}
         </p>
 
         <div>
