@@ -2,6 +2,7 @@ const Account = require("../Models/Account");
 const Transaction = require("../Models/Transaction");
 const notifyUser = require("../Utils/notifyUser");
 const crypto = require("crypto");
+const User = require("../Models/User");
 
 // helper to generate referenceId
 const generateRefId = () =>
@@ -58,7 +59,9 @@ exports.transferMoney = async (req, res) => {
     const { fromAccount, toAccount, amount } = req.body;
 
     if (fromAccount === toAccount) {
-      return res.status(400).json({ message: "Same account transfer not allowed" });
+      return res
+        .status(400)
+        .json({ message: "Same account transfer not allowed" });
     }
 
     const sender = await Account.findOne({
@@ -122,7 +125,7 @@ exports.getMyTransactions = async (req, res) => {
       "accountNumber"
     );
 
-    const accNumbers = accounts.map(a => a.accountNumber);
+    const accNumbers = accounts.map((a) => a.accountNumber);
 
     const transactions = await Transaction.find({
       $or: [
@@ -181,5 +184,157 @@ exports.adminAdjustBalance = async (req, res) => {
     res.json({ message: "Account adjusted", balance: account.balance });
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// controllers/transaction.controller.js
+
+//const Transaction = require("../models/transaction.model");
+
+exports.getTopRecentAccountsForUser = async (req, res) => {
+  try {
+    const user = req.user.id;
+    const userAccounts = await Account.find({ userId: user }).select(
+      "accountNumber -_id"
+    );
+    const accountNumbers = userAccounts.map((acc) => acc.accountNumber);
+    if (accountNumbers.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        accounts: [],
+      });
+    }
+
+    // 2️⃣ Find recent transactions for these accounts
+    const recentAccounts = await Transaction.aggregate([
+      {
+        $match: {
+          status: "SUCCESS",
+          $or: [
+            { fromAccount: { $in: accountNumbers } },
+            { toAccount: { $in: accountNumbers } },
+          ],
+        },
+      },
+      {
+        $addFields: {
+          otherAccount: {
+            $cond: [
+              { $in: ["$fromAccount", accountNumbers] },
+              "$toAccount",
+              "$fromAccount",
+            ],
+          },
+        },
+      },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: "$otherAccount",
+          lastTransactionAt: { $first: "$createdAt" },
+          lastAmount: { $first: "$amount" },
+          lastTransactionId: { $first: "$_id" },
+        },
+      },
+      { $sort: { lastTransactionAt: -1 } },
+      { $limit: 10 },
+      // 🔹 Lookup the user who owns this account
+      {
+        $lookup: {
+          from: "accounts", // collection name for Account
+          localField: "_id", // otherAccount number
+          foreignField: "accountNumber",
+          as: "accountInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$accountInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users", // collection name for User
+          localField: "accountInfo.userId",
+          foreignField: "_id",
+          as: "userInfo",
+        },
+      },
+      {
+        $unwind: {
+          path: "$userInfo",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          accountNumber: "$_id",
+          lastTransactionAt: 1,
+          lastAmount: 1,
+          lastTransactionId: 1,
+          accountHolderName: "$userInfo.name",
+        },
+      },
+    ]);
+
+    console.log("Recent Accounts fetched:", recentAccounts.length);
+    return res.status(200).json({
+      success: true,
+      count: recentAccounts.length,
+      accounts: recentAccounts.map((acc) => ({
+        accountHolderName: acc.accountHolderName || "Unknown",
+        accountNumber: acc.accountNumber,
+        lastTransaction: acc.lastTransactionAt,
+        lastAmount: acc.lastAmount,
+        transactionId: acc.lastTransactionId,
+      })),
+    });
+  } catch (error) {
+    console.error("Recent accounts error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch recent accounts",
+    });
+  }
+};
+
+/**
+ * Get transactions between two accounts (both directions)
+ * Works across ALL users (but secured by auth)
+ *
+ * Query params:
+ *  - fromAccount
+ *  - toAccount
+ */
+exports.getTransactionsBetweenAccounts = async (req, res) => {
+  try {
+    const { fromAccount, toAccount } = req.query;
+
+    if (!fromAccount || !toAccount) {
+      return res.status(400).json({
+        message: "fromAccount and toAccount are required",
+      });
+    }
+
+    const transactions = await Transaction.find({
+      $or: [
+        { fromAccount, toAccount },
+        { fromAccount: toAccount, toAccount: fromAccount },
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(50); // you can change or paginate later
+
+    return res.json({
+      count: transactions.length,
+      transactions,
+    });
+  } catch (error) {
+    console.error("Get transactions between accounts error:", error);
+    return res.status(500).json({
+      message: "Failed to fetch transactions",
+    });
   }
 };

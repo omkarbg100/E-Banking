@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import Home from "../pages/Home";
 import Starting from "../pages/Starting";
+
 import Login from "../components/Starting/Login";
 import Signup from "../components/Starting/Signup";
 import ForgotPassword from "../components/Starting/ForgotPassword";
@@ -12,13 +13,18 @@ import AccountDetails from "../components/Dashboard/AccountsDetails";
 import Transaction from "../components/Transactions/Transaction";
 import ScanQR from "../components/Transactions/ScanQR";
 import TransactionSuccess from "../components/Transactions/TransactionSuccess";
+import TransactionConversation from "../components/Transactions/TransactionConversation";
 
 import Dashboard from "../pages/Dashboard";
 import ServicesPage from "../pages/Services";
 import AboutPage from "../pages/About";
 import ContactPage from "../pages/Contact";
+import QrPage from "../pages/QrPage";
+import DeveloperPage from "../pages/DeveloperPage";
+import DeveloperDocs from "../pages/DeveloperDocs";
 
 import ProtectedRoute from "./ProtectedRoute";
+
 
 export default function AppRoutes() {
   return (
@@ -29,6 +35,7 @@ export default function AppRoutes() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/developer-docs" element={<DeveloperDocs />} />
 
         {/* Auth (Nested) */}
         <Route path="/starting" element={<Starting />}>
@@ -66,9 +73,16 @@ export default function AppRoutes() {
         />
 
         <Route path="/scan-qr" element={<ProtectedRoute><ScanQR /></ProtectedRoute>} />
+        <Route path="/qr" element={<ProtectedRoute><QrPage /></ProtectedRoute>} />
 
         <Route path="/transactions" element={<ProtectedRoute><Transaction /></ProtectedRoute>} />
+        
         <Route path="/transactions/success" element={<ProtectedRoute><TransactionSuccess /></ProtectedRoute>} />
+
+        <Route path="/transactions/between" element={<ProtectedRoute><TransactionConversation /></ProtectedRoute>} />
+
+
+        <Route path="/developer" element={<ProtectedRoute><DeveloperPage /></ProtectedRoute>} />
 
         {/* 404 */}
         <Route

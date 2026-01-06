@@ -4,10 +4,9 @@ import Footer from "../components/home/Footer";
 
 export default function About() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-7xl mx-auto px-6 pt-6">
+    < div className="min-h-screen bg-slate-950 text-white">
+      
         <HomeNav />
-      </div>
 
       <section className="max-w-4xl mx-auto px-6 py-32 text-center">
         <h1 className="text-5xl font-bold mb-6">

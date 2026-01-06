@@ -5,9 +5,9 @@ import Footer from "../components/home/Footer";
 export default function ContactPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <div className="max-w-7xl mx-auto px-6 pt-6">
+      
         <HomeNav />
-      </div>
+    
 
       <section className="max-w-3xl mx-auto px-6 py-32">
         <h1 className="text-5xl font-bold mb-6">

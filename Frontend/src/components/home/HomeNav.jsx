@@ -22,7 +22,7 @@ export default function HomeNav() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex gap-8">
-          {["/", "/services", "/about", "/contact"].map((path) => (
+          {["/", "/services", "/about", "/contact","/developer-docs"].map((path) => (
             <NavLink
               key={path}
               to={path}
@@ -64,7 +64,7 @@ export default function HomeNav() {
   `}
       >
         <div className="flex flex-col p-6 gap-4">
-          {["/", "/services", "/about", "/contact"].map((path) => (
+          {["/", "/services", "/about", "/contact","/developer-docs"].map((path) => (
             <Link
               key={path}
               to={path}

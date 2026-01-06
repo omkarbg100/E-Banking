@@ -10,9 +10,9 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
       {/* Navbar */}
-      <div className="max-w-7xl mx-auto px-6 pt-6">
+      
         <HomeNav />
-      </div>
+    
 
       {/* Hero (full width feel) */}
       <section className="relative mt-16">

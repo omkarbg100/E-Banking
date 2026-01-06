@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useAccounts } from "../context/AccountContext";
 import { useNavigate } from "react-router-dom";
+import RecentAccounts from "../components/Transactions/RecentAccounts";
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -118,6 +119,10 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <section className="mb-12">
+        <RecentAccounts/>
+        </section>
+
       {/* ================= QUICK ACTIONS ================= */}
       <section className="mb-12">
         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
@@ -139,6 +144,23 @@ export default function Dashboard() {
   "
           >
             <p className="text-sm font-medium">Transfer Money</p>
+          </div>
+
+          <div
+            onClick={() => navigate("/qr")}
+            className="
+    min-w-37.5
+    rounded-xl
+    bg-white/5
+    border border-white/10
+    p-4
+    text-center
+    hover:bg-white/10
+    transition
+    cursor-pointer
+  "
+          >
+            <p className="text-sm font-medium">Your QR Code</p>
           </div>
 
           {[

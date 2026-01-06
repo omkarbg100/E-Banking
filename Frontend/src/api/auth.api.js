@@ -66,3 +66,27 @@ export const getMyTransactions = () =>
     `${BASE_URL}/transactions/me`,
     getAuthHeaders()
   );
+
+export const getRecentTransactionAccounts = () =>
+  axios.get(`${BASE_URL}/transactions/recent-accounts`, getAuthHeaders());
+
+
+export const getTransactionsBetweenAccounts = (fromAccount, toAccount) =>
+  axios.get(`${BASE_URL}/transactions/between`, {
+    params: { fromAccount, toAccount },
+  }, getAuthHeaders());
+
+
+
+
+
+
+
+ 
+// get logged-in developer account
+export const getMyDeveloperAccount = () =>
+  axios.get(`${BASE_URL}/developer/me`, getAuthHeaders());
+
+// create developer account
+export const createDeveloperAccount = (data) =>
+  axios.post(`${BASE_URL}/developer/create`, data, getAuthHeaders());
