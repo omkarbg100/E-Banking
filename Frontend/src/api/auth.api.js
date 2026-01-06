@@ -71,13 +71,11 @@ export const getRecentTransactionAccounts = () =>
   axios.get(`${BASE_URL}/transactions/recent-accounts`, getAuthHeaders());
 
 
-export const getTransactionsBetweenAccounts = (fromAccount, toAccount) =>
+export const getTransactionsBetweenAccounts = (toAccount) =>
   axios.get(`${BASE_URL}/transactions/between`, {
-    params: { fromAccount, toAccount },
-  }, getAuthHeaders());
-
-
-
+    params: {toAccount},
+    ...getAuthHeaders(), // <- spread the headers object here
+  });
 
 
 

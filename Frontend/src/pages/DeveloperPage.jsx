@@ -76,7 +76,6 @@ const DeveloperPage = () => {
   return (
     /* Full-page dark wrapper */
     <div>
-        <HomeNav />
     <div className="min-h-screen w-full bg-linear-to-b from-slate-900 via-slate-950 to-slate-900 text-white flex justify-center py-10 px-4">
       {/* Content container */}
       <div className="w-full max-w-3xl flex flex-col gap-6">

@@ -308,33 +308,70 @@ exports.getTopRecentAccountsForUser = async (req, res) => {
  *  - fromAccount
  *  - toAccount
  */
+
 exports.getTransactionsBetweenAccounts = async (req, res) => {
   try {
-    const { fromAccount, toAccount } = req.query;
+    const userId = req.user.id;
+    const { toAccount } = req.query;
 
-    if (!fromAccount || !toAccount) {
-      return res.status(400).json({
-        message: "fromAccount and toAccount are required",
-      });
+    if (!toAccount) {
+      return res.status(400).json({ message: "toAccount is required" });
     }
 
+    // 1️⃣ Get all accounts of user
+    const userAccounts = await Account.find({ userId })
+      .select("accountNumber -_id");
+
+    const userAccountNumbers = userAccounts.map(a => a.accountNumber);
+
+    if (userAccountNumbers.length === 0) {
+      return res.json({ count: 0, transactions: [] });
+    }
+
+    // 2️⃣ Fetch conversation transactions
     const transactions = await Transaction.find({
+      status: "SUCCESS",
       $or: [
-        { fromAccount, toAccount },
-        { fromAccount: toAccount, toAccount: fromAccount },
+        {
+          fromAccount: { $in: userAccountNumbers },
+          toAccount,
+        },
+        {
+          fromAccount: toAccount,
+          toAccount: { $in: userAccountNumbers },
+        },
       ],
     })
       .sort({ createdAt: -1 })
-      .limit(50); // you can change or paginate later
+      .limit(50);
+
+    // 3️⃣ Apply YOUR logic (correct)
+    const enriched = transactions.map(txn => {
+      const direction =
+        txn.toAccount === toAccount ? "SENT" : "RECEIVED";
+
+      return {
+        _id: txn._id,
+        amount: txn.amount,
+        description: txn.description,
+        type: txn.type,
+        status: txn.status,
+        createdAt: txn.createdAt,
+
+        direction,
+        sentTo: direction === "SENT" ? toAccount : null,
+        receivedFrom: direction === "RECEIVED" ? toAccount : null,
+      };
+    });
 
     return res.json({
-      count: transactions.length,
-      transactions,
+      count: enriched.length,
+      transactions: enriched,
     });
-  } catch (error) {
-    console.error("Get transactions between accounts error:", error);
-    return res.status(500).json({
-      message: "Failed to fetch transactions",
-    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Failed to fetch transactions" });
   }
 };
+

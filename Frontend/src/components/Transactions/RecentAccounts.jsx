@@ -38,7 +38,7 @@ const RecentAccounts = () => {
               key={acc.accountNumber}
               onClick={() =>
                 navigate(
-                  `/transactions/between?from=${acc.myAccount}&to=${acc.accountNumber}`
+                  `/transactions/between?to=${acc.accountNumber}`
                 )
               }
               className="flex justify-between flex-wrap items-center bg-slate-900 border border-slate-800 rounded-xl p-4 hover:bg-slate-800 transition"
