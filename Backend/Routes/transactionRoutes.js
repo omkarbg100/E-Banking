@@ -8,7 +8,7 @@ const {
   adminAdjustBalance,
   getTopRecentAccountsForUser,
   getTransactionsBetweenAccounts,
-} = require("../controllers/transactionController");
+} = require("../Controllers/transactionController");
 
 const auth = require("../Middleware/authMiddleware");
 const role = require("../Middleware/roleMiddleware");
