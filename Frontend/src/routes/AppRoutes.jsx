@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 
 import Home from "../pages/Home";
 import Starting from "../pages/Starting";
@@ -9,6 +10,7 @@ import Signup from "../components/Starting/Signup";
 import ForgotPassword from "../components/Starting/ForgotPassword";
 import CreateAccount from "../components/Dashboard/CreateAccount";
 import AccountDetails from "../components/Dashboard/AccountsDetails";
+
 
 import Transaction from "../components/Transactions/Transaction";
 import ScanQR from "../components/Transactions/ScanQR";
@@ -22,6 +24,14 @@ import ContactPage from "../pages/Contact";
 import QrPage from "../pages/QrPage";
 import DeveloperPage from "../pages/DeveloperPage";
 import DeveloperDocs from "../pages/DeveloperDocs";
+
+
+
+// Admin Things
+import AdminDashboard from "../pages/Admin/AdminDashboard";
+import AdminLogin from "../pages/Admin/AdminLogin";
+
+
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -84,13 +94,18 @@ export default function AppRoutes() {
 
         <Route path="/developer" element={<ProtectedRoute><DeveloperPage /></ProtectedRoute>} />
 
+
+
+
+        {/*     Admin Pages       */}
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+
         {/* 404 */}
         <Route
-          path="*"
-          element={
-            <Home />
-          }
-        />
+  path="*"
+  element={<Navigate to="/" replace />}
+/>
       </Routes>
     </BrowserRouter>
   );
