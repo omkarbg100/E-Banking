@@ -1,3 +1,6 @@
+
+
+
 # 🏦 E-Banking Web Application (MERN Stack)
 
 A full-stack **E-Banking Web Application** built using the **MERN stack** that provides secure digital banking features such as user authentication with OTP, account management, money transfers, QR-based payments, and an admin dashboard for system control.
@@ -5,8 +8,8 @@ A full-stack **E-Banking Web Application** built using the **MERN stack** that p
 ---
 
 ## 🚀 Live Demo
-🔗 **Live App:** https://e-banking-frontend-p0w2.onrender.com/  
-🔗 **Admin Panel:** https://e-banking-frontend-p0w2.onrender.com/admin  
+🔗 **Live App:** https://your-ebanking-app.onrender.com  
+🔗 **Admin Panel:** https://your-ebanking-app.onrender.com/admin  
 
 > ⚠️ Deployed on free hosting, so the first load may take a few seconds.
 
@@ -86,5 +89,68 @@ This project simulates a real-world digital banking system where users can manag
 
 ## 📁 Project Structure
 
+```
 
+E_Banking_Project/
+│
+├── frontend/
+│   ├── src/
+│   │   ├── pages/
+│   │   ├── components/
+│   │   └── services/
+│
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── models/
+│   ├── middleware/
+│   └── config/
+│
+├── README.md
+└── package.json
+
+````
+
+---
+
+## ⚙️ Installation & Setup
+
+### 1️⃣ Clone the Repository
+```bash
+git clone https://github.com/your-username/e-banking-project.git
+cd e-banking-project
+````
+
+### 2️⃣ Backend Setup
+
+```bash
+cd backend
+npm install
+npm run dev
+```
+
+### 3️⃣ Frontend Setup
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+---
+
+## 🔮 Future Enhancements
+
+* UPI / Wallet Integration
+* Transaction Filters & Search
+* PDF Bank Statements
+* Mobile App Version
+* Two-Factor Authentication (2FA)
+
+---
+
+## 👨‍💻 Author
+
+**Omkar Gaikwad**
+Full Stack Developer
 
