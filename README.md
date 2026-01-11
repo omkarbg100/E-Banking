@@ -8,8 +8,8 @@ A full-stack **E-Banking Web Application** built using the **MERN stack** that p
 ---
 
 ## 🚀 Live Demo
-🔗 **Live App:** https://your-ebanking-app.onrender.com  
-🔗 **Admin Panel:** https://your-ebanking-app.onrender.com/admin  
+🔗 **Live App:** https://e-banking-frontend-p0w2.onrender.com/ 
+
 
 > ⚠️ Deployed on free hosting, so the first load may take a few seconds.
 
