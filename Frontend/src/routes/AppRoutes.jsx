@@ -24,9 +24,8 @@ import ContactPage from "../pages/Contact";
 import QrPage from "../pages/QrPage";
 import DeveloperPage from "../pages/DeveloperPage";
 import DeveloperDocs from "../pages/DeveloperDocs";
-
-
-
+import UpiDashboard from "../pages/UpiDashboard";
+import Checkout from "../pages/Checkout";
 // Admin Things
 import AdminDashboard from "../pages/Admin/AdminDashboard";
 import AdminLogin from "../pages/Admin/AdminLogin";
@@ -46,6 +45,7 @@ export default function AppRoutes() {
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
         <Route path="/developer-docs" element={<DeveloperDocs />} />
+        <Route path="/checkout/:orderId" element={<Checkout />} />
 
         {/* Auth (Nested) */}
         <Route path="/starting" element={<Starting />}>
@@ -93,6 +93,7 @@ export default function AppRoutes() {
 
 
         <Route path="/developer" element={<ProtectedRoute><DeveloperPage /></ProtectedRoute>} />
+        <Route path="/upi-dashboard" element={<ProtectedRoute><UpiDashboard /></ProtectedRoute>} />
 
 
 

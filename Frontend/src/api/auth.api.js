@@ -1,6 +1,7 @@
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
 //const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
@@ -75,14 +76,14 @@ export const getRecentTransactionAccounts = () =>
 
 export const getTransactionsBetweenAccounts = (toAccount) =>
   axios.get(`${BASE_URL}/transactions/between`, {
-    params: {toAccount},
+    params: { toAccount },
     ...getAuthHeaders(), // <- spread the headers object here
   });
 
 
 
 
- 
+
 // get logged-in developer account
 export const getMyDeveloperAccount = () =>
   axios.get(`${BASE_URL}/developer/me`, getAuthHeaders());
@@ -90,3 +91,33 @@ export const getMyDeveloperAccount = () =>
 // create developer account
 export const createDeveloperAccount = (data) =>
   axios.post(`${BASE_URL}/developer/create`, data, getAuthHeaders());
+
+/* ================= WEBHOOKS ================= */
+export const getWebhook = () =>
+  axios.get(`${BASE_URL}/webhook`, getAuthHeaders());
+
+export const registerWebhook = (data) =>
+  axios.post(`${BASE_URL}/webhook/register`, data, getAuthHeaders());
+
+/* ================= UPI ================= */
+export const createUpiId = (data) =>
+  axios.post(`${BASE_URL}/upi/create-id`, data, getAuthHeaders());
+
+export const scanAndPayUpi = (data) =>
+  axios.post(`${BASE_URL}/upi/scan-pay`, data, getAuthHeaders());
+
+export const createCollectRequest = (data) =>
+  axios.post(`${BASE_URL}/upi/collect-request`, data, getAuthHeaders());
+
+export const getPendingUpiRequests = () =>
+  axios.get(`${BASE_URL}/upi/pending-requests`, getAuthHeaders());
+
+export const approveCollectRequest = (data) =>
+  axios.post(`${BASE_URL}/upi/collect-approve`, data, getAuthHeaders());
+
+/* ================= CHECKOUT / PAYMENT GATEWAY ================= */
+export const apiGetOrder = (orderId) =>
+  axios.get(`${BASE_URL}/pg/order/${orderId}`);
+
+export const apiVerifyPayment = (data) =>
+  axios.post(`${BASE_URL}/pg/verify`, data);

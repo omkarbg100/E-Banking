@@ -2,6 +2,7 @@ const Account = require("../Models/Account");
 const DeveloperAccount = require("../Models/DeveloperAccount");
 const Transaction = require("../Models/Transaction");
 const QRCode = require("qrcode");
+const crypto = require("crypto");
 
 // ==========================
 // API 1: CREATE DEVELOPER
@@ -40,7 +41,8 @@ exports.createDeveloper = async (req, res) => {
 
     // 5. Generate IDs
     const merchantId = "MERCHANT_" + Date.now();
-    const publicKey = "pk_" + Math.random().toString(36).substring(2, 12);
+    const publicKey = "pk_test_" + Math.random().toString(36).substring(2, 12);
+    const secretKey = "sk_test_" + crypto.randomBytes(16).toString("hex");
 
     // 6. Create developer
     const developer = await DeveloperAccount.create({
@@ -49,6 +51,7 @@ exports.createDeveloper = async (req, res) => {
       accountNumber,
       merchantId,
       publicKey,
+      secretKey,
     });
 
     // 7. Generate QR
@@ -144,6 +147,7 @@ exports.getMyDeveloperAccount = async (req, res) => {
         developerName: developer.developerName,
         merchantId: developer.merchantId,
         publicKey: developer.publicKey,
+        secretKey: developer.secretKey,
         accountNumber: developer.accountNumber,
         createdAt: developer.createdAt,
       },

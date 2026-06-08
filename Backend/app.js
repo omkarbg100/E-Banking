@@ -8,6 +8,9 @@ const accountRoutes = require("./Routes/accountRoutes");
 const transactionRoutes = require("./Routes/transactionRoutes");
 const qrRoutes = require("./Routes/qrRoutes");
 const developerPaymentRoutes = require("./Routes/developerPaymentRoutes");
+const paymentGatewayRoutes = require("./Routes/paymentGatewayRoutes");
+const webhookRoutes = require("./Routes/webhookRoutes");
+const upiRoutes = require("./Routes/upiRoutes");
 
 
 
@@ -26,6 +29,9 @@ app.use("/api/transactions", transactionRoutes);
 app.use("/api/qr", qrRoutes);
 
 app.use("/api/developer", developerPaymentRoutes);
+app.use("/api/payment", paymentGatewayRoutes);
+app.use("/api/webhook", webhookRoutes);
+app.use("/api/upi", upiRoutes);
 
 
 // Health check

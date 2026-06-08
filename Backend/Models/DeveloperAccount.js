@@ -32,6 +32,12 @@ const developerSchema = new mongoose.Schema(
       unique: true,
     },
 
+    secretKey: {
+      type: String, // Kept secure, used for server-to-server auth
+      required: true,
+      unique: true,
+    },
+
     isActive: {
       type: Boolean,
       default: true,
