@@ -1,100 +1,111 @@
-const Transaction = require("../Models/Transaction");
-const notifyUser = require("../Utils/notifyUser");
 const crypto = require("crypto");
 const Account = require("../Models/Account");
+const Transaction = require("../Models/Transaction");
+const User = require("../Models/User");
+const asyncHandler = require("../Middleware/asyncHandler");
+const httpError = require("../Utils/httpError");
+const withTransaction = require("../Utils/withTransaction");
+const { emitEvent } = require("../Infrastructure/events");
+const { TOPICS } = require("../Infrastructure/kafka");
+const { invalidate, cacheKey } = require("../Infrastructure/redis");
 
-const generateRefId = () =>
-  "TXN-" + crypto.randomBytes(6).toString("hex").toUpperCase();
+async function invalidateUsers(userIds) {
+  await invalidate(
+    ...userIds.filter(Boolean).flatMap((id) => [
+      cacheKey("accounts", "list", String(id)),
+      cacheKey("txns", "me", String(id)),
+      cacheKey("txns", "recent", String(id))
+    ])
+  );
+}
 
-exports.payViaQR = async (req, res) => {
-  try {
-    const { fromAccount, toAccount, amount } = req.body;
+const payViaQR = asyncHandler(async (req, res) => {
+  const { fromAccount, toAccount, amount, idempotencyKey } = req.body;
+  if (fromAccount === toAccount) throw httpError(400, "Cannot pay to the same account");
 
-    if (amount <= 0) {
-      return res.status(400).json({ message: "Invalid amount" });
+  const result = await withTransaction(async (session) => {
+    const receiver = await Account.findOne({ accountNumber: toAccount, status: "ACTIVE" }).session(session);
+    if (!receiver) throw httpError(404, "Receiver account not found or inactive");
+
+    const sender = await Account.findOneAndUpdate(
+      {
+        accountNumber: fromAccount,
+        userId: req.user.id,
+        status: "ACTIVE",
+        balance: { $gte: amount }
+      },
+      { $inc: { balance: -amount } },
+      { new: true, session }
+    );
+    if (!sender) {
+      const exists = await Account.exists({ accountNumber: fromAccount, userId: req.user.id });
+      throw httpError(exists ? 400 : 404, exists ? "Insufficient balance" : "Sender account not found");
     }
 
-    if (fromAccount === toAccount) {
-      return res.status(400).json({ message: "Cannot pay to same account" });
-    }
+    const updatedReceiver = await Account.findOneAndUpdate(
+      { _id: receiver._id, status: "ACTIVE" },
+      { $inc: { balance: amount } },
+      { new: true, session }
+    );
+    if (!updatedReceiver) throw httpError(404, "Receiver account is not active");
 
-    const sender = await Account.findOne({
-      accountNumber: fromAccount,
-      userId: req.user.id,
-      status: "ACTIVE",
-    });
+    const transaction = await Transaction.create(
+      [
+        {
+          referenceId: `TXN-${crypto.randomBytes(6).toString("hex").toUpperCase()}`,
+          idempotencyKey:
+            idempotencyKey || req.headers["idempotency-key"] || `qr:${crypto.randomUUID()}`,
+          fromAccount,
+          toAccount,
+          amount,
+          type: "TRANSFER",
+          initiatedBy: "USER",
+          status: "SUCCESS",
+          balanceAfterTransaction: sender.balance,
+          description: "QR payment"
+        }
+      ],
+      { session }
+    );
 
-    const receiver = await Account.findOne({
-      accountNumber: toAccount,
-      status: "ACTIVE",
-    });
+    return { sender, receiver: updatedReceiver, transaction: transaction[0] };
+  });
 
-    if (!sender || !receiver) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    if (sender.balance < amount) {
-      return res.status(400).json({ message: "Insufficient balance" });
-    }
-
-    sender.balance -= amount;
-    receiver.balance += amount;
-
-    await sender.save();
-    await receiver.save();
-
-    await Transaction.create({
-      referenceId: generateRefId(),
-      fromAccount,
-      toAccount,
-      amount,
+  await invalidateUsers([req.user.id, result.receiver.userId.toString()]);
+  await emitEvent(
+    TOPICS.TXN_COMPLETED,
+    {
+      transactionId: result.transaction._id.toString(),
+      referenceId: result.transaction.referenceId,
       type: "TRANSFER",
-      initiatedBy: "USER",
-      balanceAfterTransaction: sender.balance,
-      description: "QR Payment",
-    });
+      amount,
+      senderUserId: req.user.id,
+      receiverUserId: result.receiver.userId.toString(),
+      fromAccount,
+      toAccount
+    },
+    result.transaction.referenceId
+  );
 
-    await notifyUser({
-      userId: sender.userId,
-      title: "QR Payment Sent",
-      message: `₹${amount} paid via QR`,
-    });
+  res.json({
+    message: "QR payment successful",
+    balance: result.sender.balance,
+    transaction: result.transaction
+  });
+});
 
-    await notifyUser({
-      userId: receiver.userId,
-      title: "QR Payment Received",
-      message: `₹${amount} received via QR`,
-    });
+const getMyQRCode = asyncHandler(async (req, res) => {
+  const account = await Account.findOne({ userId: req.user.id, status: "ACTIVE" });
+  if (!account) throw httpError(404, "Active account not found");
 
-    res.json({ message: "QR payment successful" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-exports.getMyQRCode = async (req, res) => {
-  try {
-    const account = await Account.findOne({
-      userId: req.user.id,
-      status: "ACTIVE",
-    });
-
-    if (!account) {
-      return res.status(404).json({ message: "Active account not found" });
-    }
-
-    const qrPayload = {
+  const user = await User.findById(req.user.id).select("name email");
+  res.json({
+    qrData: {
       accountNumber: account.accountNumber,
-      name: req.user.id, // or fetch user name
-      bank: "E-Banking",
-    };
+      name: user?.name || "",
+      bank: "E-Banking"
+    }
+  });
+});
 
-    res.json({
-      qrData: qrPayload,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
+module.exports = { payViaQR, getMyQRCode };

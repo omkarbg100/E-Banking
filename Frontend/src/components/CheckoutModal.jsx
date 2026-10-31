@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const CheckoutModal = ({ isOpen, onClose, publicKey, orderId, amount, onSuccess }) => {
+const CheckoutModal = ({ isOpen, onClose, orderId, amount, onSuccess }) => {
     const [method, setMethod] = useState('ACCOUNT_BALANCE');
     const [fromAccount, setFromAccount] = useState('');
     const [loading, setLoading] = useState(false);
@@ -13,12 +13,12 @@ const CheckoutModal = ({ isOpen, onClose, publicKey, orderId, amount, onSuccess 
         setLoading(true);
         setError('');
         try {
-            // Usually this happens server to server after getting checkout token, but for simulation we just call execution directly
-            const res = await axios.post("http://localhost:5000/api/payment/verify", {
-                orderId,
-                method,
-                fromAccount
-            });
+            const token = localStorage.getItem("token");
+            const res = await axios.post(
+                `${import.meta.env.VITE_API_BASE_URL || "/api"}/pg/verify`,
+                { orderId, method, fromAccount },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             onSuccess(res.data);
             onClose();
         } catch (err) {

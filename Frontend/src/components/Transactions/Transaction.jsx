@@ -66,7 +66,7 @@ export default function Transaction() {
 
       setTimeout(() => {
         navigate("/transactions/success", {
-          state: payload,
+          state: { ...payload, referenceId: res.data.transaction?.referenceId },
         });
       }, 1200);
     } catch (err) {

@@ -1,193 +1,154 @@
 const User = require("../Models/User");
-const Account = require("../Models/Account");
-const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const sendEmail = require("../Utils/sendEmail");
+const env = require("../Config/env");
+const asyncHandler = require("../Middleware/asyncHandler");
+const httpError = require("../Utils/httpError");
+const { enqueueEmail } = require("../Infrastructure/queue");
+const { emitEvent } = require("../Infrastructure/events");
+const { TOPICS } = require("../Infrastructure/kafka");
+const { getRedis, cacheKey } = require("../Infrastructure/redis");
+const {
+  generateOtp,
+  storeOtp,
+  verifyOtp,
+  issueVerificationToken,
+  consumeVerificationToken
+} = require("../Utils/otp");
 
-// ================= REGISTER =================
+function signToken(user) {
+  return jwt.sign({ id: user._id.toString(), role: user.role }, env.JWT_SECRET, {
+    expiresIn: env.JWT_EXPIRES_IN
+  });
+}
 
-const Otp = require("../Models/Otp");
+function otpEmail(kind, otp) {
+  const action = kind === "reset" ? "reset your password" : "complete your registration";
+  return {
+    subject: `Your E-Banking OTP: ${otp}`,
+    text: `Use OTP ${otp} to ${action}. It expires in ${Math.round(env.OTP_TTL_SECONDS / 60)} minutes.`,
+    html: `<p>Use the OTP below to ${action}:</p><h2 style="letter-spacing:6px">${otp}</h2><p>This code expires in ${Math.round(env.OTP_TTL_SECONDS / 60)} minutes. Never share it with anyone.</p>`
+  };
+}
 
-const sendRegisterOtp = async (req, res) => {
-  const { email } = req.body;
+const sendRegisterOtp = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const existing = await User.findOne({ email });
+  if (existing) throw httpError(409, "Email already registered");
 
-  const userExists = await User.findOne({ email });
-  if (userExists) {
-    return res.status(400).json({ message: "Email already registered" });
+  const otp = generateOtp();
+  await storeOtp("register", email, otp);
+  const mail = otpEmail("register", otp);
+  await enqueueEmail({ to: email, ...mail });
+  await emitEvent(TOPICS.OTP_REQUESTED, { email, purpose: "register" }, email);
+
+  res.status(202).json({ message: "OTP sent to email" });
+});
+
+const verifyRegisterOtp = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const result = await verifyOtp("register", email, req.body.otp);
+  if (!result.ok) {
+    throw httpError(400, result.reason === "TOO_MANY_ATTEMPTS" ? "Too many invalid attempts" : "Invalid or expired OTP");
   }
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationToken = await issueVerificationToken(email);
+  res.json({ message: "OTP verified successfully", verificationToken });
+});
 
-  await Otp.findOneAndUpdate(
-    { email },
-    {
-      otp,
-      expiresAt: Date.now() + 10 * 60 * 1000,
-    },
-    { upsert: true }
-  );
+const register = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const verified = await consumeVerificationToken(email, req.body.verificationToken);
+  if (!verified) throw httpError(400, "OTP verification required or expired");
 
-  await sendEmail(email, `Your registration OTP is ${otp}`);
-
-  res.json({ message: "OTP sent to email" });
-};
-
-
-const  verifyRegisterOtp = async (req, res) => {
-  const { email, otp } = req.body;
-
-  const record = await Otp.findOne({ email });
-
-  if (!record || record.otp !== otp) {
-    return res.status(400).json({ message: "Invalid OTP" });
-  }
-
-  if (record.expiresAt < Date.now()) {
-    return res.status(400).json({ message: "OTP expired" });
-  }
-
-  res.json({ message: "OTP verified successfully" });
-};
-
-const register = async (req, res) => {
-  const { name, email, password } = req.body;
-
-  const otpRecord = await Otp.findOne({ email });
-  if (!otpRecord) {
-    return res.status(400).json({ message: "OTP verification required" });
-  }
+  const existing = await User.findOne({ email });
+  if (existing) throw httpError(409, "Email already registered");
 
   const user = await User.create({
-    name,
+    name: req.body.name,
     email,
-    password,
+    password: req.body.password
   });
 
-  await Otp.deleteOne({ email });
+  await emitEvent(
+    TOPICS.USER_REGISTERED,
+    { userId: user._id.toString(), name: user.name, email: user.email },
+    user._id.toString()
+  );
 
-  res.status(201).json({ message: "User registered successfully" });
-};
+  res.status(201).json({ message: "User registered successfully", user: user.toSafeJSON() });
+});
 
+const login = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const user = await User.findOne({ email }).select("+password");
+  if (!user) throw httpError(401, "Invalid credentials");
+  if (!user.isActive) throw httpError(403, "Account is deactivated");
 
+  const isMatch = await user.comparePassword(req.body.password);
+  if (!isMatch) throw httpError(401, "Invalid credentials");
 
-// ================= LOGIN =================
-const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  user.lastLoginAt = new Date();
+  await user.save({ validateModifiedOnly: true });
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-    console.log("Comparing password:", password, "with stored hash:", user.password);
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (password !== user.password ) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+  res.json({ token: signToken(user), user: user.toSafeJSON() });
+});
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
+const forgotPassword = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const user = await User.findOne({ email });
 
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  if (user) {
+    const otp = generateOtp();
+    await storeOtp("reset", email, otp);
+    const mail = otpEmail("reset", otp);
+    await enqueueEmail({ to: email, ...mail });
+    await emitEvent(TOPICS.OTP_REQUESTED, { email, purpose: "reset" }, email);
   }
-};
 
-// ================= FORGOT PASSWORD =================
-const forgotPassword = async (req, res) => {
-  try {
-    const { email } = req.body;
+  res.json({ message: "If the account exists, a reset OTP has been sent" });
+});
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+const resetPassword = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const result = await verifyOtp("reset", email, req.body.otp);
+  if (!result.ok) throw httpError(400, "Invalid or expired OTP");
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const user = await User.findOne({ email });
+  if (!user) throw httpError(400, "Invalid or expired OTP");
 
-    user.otp = otp;
-    user.otpExpiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-    await user.save();
+  user.password = req.body.newPassword;
+  await user.save();
+  await getRedis().del(cacheKey("user", "sessions", user._id.toString()));
 
-    await sendEmail(
-      user.email,
-      "Password Reset OTP",
-      `Your OTP is ${otp}. It is valid for 10 minutes.`
-    );
+  res.json({ message: "Password reset successful" });
+});
 
-    res.json({ message: "OTP sent to email" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+const resetPasswordLoggedIn = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id).select("+password");
+  if (!user) throw httpError(404, "User not found");
 
-// ================= RESET PASSWORD =================
-const resetPassword = async (req, res) => {
-  try {
-    const { email, otp, newPassword } = req.body;
+  const isMatch = await user.comparePassword(req.body.oldPassword);
+  if (!isMatch) throw httpError(401, "Old password is incorrect");
 
-    const user = await User.findOne({
-      email,
-      otp,
-      otpExpiresAt: { $gt: Date.now() },
-    });
+  user.password = req.body.newPassword;
+  await user.save();
 
-    if (!user) {
-      return res.status(400).json({ message: "Invalid or expired OTP" });
-    }
+  res.json({ message: "Password updated successfully" });
+});
 
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.otp = null;
-    user.otpExpiresAt = null;
-
-    await user.save();
-
-    res.json({ message: "Password reset successful" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Reset password while logged in
-const resetPasswordLoggedIn = async (req, res) => {
-  try {
-    const { oldPassword, newPassword } = req.body;
-
-    const user = await User.findById(req.user.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const isMatch = await bcrypt.compare(oldPassword, user.password);
-    if (!isMatch)
-      return res.status(401).json({ message: "Old password is incorrect" });
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    res.json({ message: "Password updated successfully" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+const getMe = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.id);
+  if (!user) throw httpError(404, "User not found");
+  res.json({ user: user.toSafeJSON() });
+});
 
 module.exports = {
   sendRegisterOtp,
-    verifyRegisterOtp,
+  verifyRegisterOtp,
   register,
   login,
   forgotPassword,
   resetPassword,
   resetPasswordLoggedIn,
+  getMe
 };
-// ================= EXPORTS =================

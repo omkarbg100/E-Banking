@@ -99,8 +99,15 @@ export default function AppRoutes() {
 
 
         {/*     Admin Pages       */}
-        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute role="ADMIN">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* 404 */}
         <Route

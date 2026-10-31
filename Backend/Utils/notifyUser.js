@@ -1,15 +1,12 @@
 const Notification = require("../Models/Notification");
+const logger = require("../Infrastructure/logger");
 
-const notifyUser = async ({ userId, title, message, type = "INFO" }) => {
+const notifyUser = async ({ userId, title, message, type = "INFO", metadata }) => {
   try {
-    await Notification.create({
-      userId,
-      title,
-      message,
-      type,
-    });
+    return await Notification.create({ userId, title, message, type, metadata });
   } catch (error) {
-    console.error("Notification failed:", error.message);
+    logger.error({ err: error.message, userId }, "notification failed");
+    return null;
   }
 };
 

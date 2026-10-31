@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { emailOTP, verifyOTP, register } from "../../api/auth.api";
 
 const Signup = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     email: "",
@@ -23,13 +24,10 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      console.log("Sending OTP to:", form.email);
-      // 🔗 API: POST /auth/send-otp
-      // await axios.post("/auth/send-otp", { email: form.email });
-      emailOTP(form);
+      await emailOTP({ email: form.email });
       setStep(2);
     } catch (err) {
-      alert("Failed to send OTP");
+      alert(err.response?.data?.message || "Failed to send OTP");
     } finally {
       setLoading(false);
     }
@@ -41,22 +39,20 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      // STEP 2A: Verify OTP
-      await verifyOTP({
+      const verifyRes = await verifyOTP({
         email: form.email,
         otp: form.otp,
       });
 
-      // STEP 2B: Register User
       await register({
         name: form.name,
         email: form.email,
         password: form.password,
+        verificationToken: verifyRes.data.verificationToken,
       });
 
       alert("Account created successfully 🎉");
-      // 👉 redirect to login if needed
-      // navigate("/starting/login");
+      navigate("/starting/login");
     } catch (err) {
       alert(err.response?.data?.message || "Registration failed");
     } finally {

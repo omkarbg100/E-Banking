@@ -6,35 +6,47 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      index: true
     },
     orderId: {
       type: String,
       required: true,
+      index: true
     },
     merchantId: {
       type: String,
       required: true,
+      index: true
     },
     amount: {
       type: Number,
-      required: true,
+      required: true
     },
     status: {
       type: String,
       enum: ["PENDING", "SUCCESS", "FAILED", "REFUNDED"],
       default: "PENDING",
+      index: true
     },
     method: {
-      type: String, // "UPI", "ACCOUNT_BALANCE"
+      type: String
     },
     customerAccountId: {
-      type: String, // The account number that paid it, if available
+      type: String
+    },
+    customerUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
     },
     transactionId: {
-      type: String, // Linked system transaction ID
-    }
+      type: String
+    },
+    refundedAt: Date,
+    refundTransactionId: String
   },
   { timestamps: true }
 );
+
+paymentSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Payment", paymentSchema);

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export default function AdminDashboard() {
   const [accounts, setAccounts] = useState([]);
@@ -10,10 +10,6 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
 
   const navigate = useNavigate();
-
-  useEffect(() => {
-    fetchAllAccounts();
-  }, []);
 
   const fetchAllAccounts = async () => {
     setLoading(true);
@@ -37,6 +33,10 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchAllAccounts();
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-6 py-8">

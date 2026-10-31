@@ -26,7 +26,7 @@ export default function ScanQR() {
           });
         });
       },
-      (error) => {
+      () => {
         // ignore scan errors
       }
     );

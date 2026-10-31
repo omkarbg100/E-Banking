@@ -1,0 +1,178 @@
+name: ebank
+
+x-backend-env: &backend-env
+  NODE_ENV: production
+  PORT: "5000"
+  MONGO_URI: mongodb://mongo:27017/ebank?replicaSet=rs0
+  REDIS_URL: redis://redis:6379
+  KAFKA_BROKERS: redpanda:29092
+  KAFKA_ENABLED: "true"
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-jwt-secret-please-32chars}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+  CORS_ORIGINS: http://localhost:8080,http://localhost:5173
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_SECURE: "false"
+  EMAIL_FROM: ${EMAIL_FROM:-E-Banking <no-reply@ebank.local>}
+  ADMIN_NAME: ${ADMIN_NAME:-Platform Admin}
+  ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@ebank.local}
+  ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin@12345}
+  WEBHOOK_ALLOW_PRIVATE: ${WEBHOOK_ALLOW_PRIVATE:-true}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  OTP_PEPPER: ${OTP_PEPPER:-dev-otp-pepper-change-me}
+
+services:
+  mongo:
+    image: mongo:7
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval \"try { rs.status().ok } catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'mongo:27017'}]}).ok }\" | grep -q 1"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.6
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --node-id
+      - "0"
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:29092,OUTSIDE://localhost:19092
+      - --rpc-addr
+      - 0.0.0.0:33145
+      - --advertise-rpc-addr
+      - redpanda:33145
+      - --set
+      - redpanda.auto_create_topics_enabled=true
+    ports:
+      - "19092:19092"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health --exit-when-healthy"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v3.13.1
+    restart: unless-stopped
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    ports:
+      - "8081:8080"
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      <<: *backend-env
+    ports:
+      - "5000:5000"
+
+  web:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+
+volumes:
+  mongo_data:
+  redis_data:
+  redpanda_data:
+  prometheus_data:
+  grafana_data:

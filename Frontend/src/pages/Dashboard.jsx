@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import RecentAccounts from "../components/Transactions/RecentAccounts";
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { accounts, fetchAccounts, loadingAccounts, error } = useAccounts();
   const navigate = useNavigate();
 

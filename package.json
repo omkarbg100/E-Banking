@@ -2,22 +2,21 @@
   "name": "ebank-platform",
   "version": "1.0.0",
   "private": true,
-  "description": "Production-grade microservices E-Banking platform",
-  "workspaces": [
-    "packages/*",
-    "services/*"
-  ],
+  "description": "E-Banking platform: MERN backend scaled with Redis, Kafka, BullMQ, and Docker",
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   },
   "scripts": {
-    "test": "node --test tests/unit",
-    "smoke": "node scripts/smoke-test.js",
-    "docker:up": "docker compose --profile core up -d --build",
-    "docker:down": "docker compose down -v",
-    "docker:observability": "docker compose --profile core --profile observability up -d --build"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.14"
+    "install:all": "npm --prefix Backend install && npm --prefix Frontend install",
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "start:backend": "npm --prefix Backend start",
+    "build:frontend": "npm --prefix Frontend run build",
+    "test": "npm --prefix Backend test",
+    "docker:up": "docker compose up -d --build",
+    "docker:down": "docker compose down",
+    "docker:reset": "docker compose down -v",
+    "docker:logs": "docker compose logs -f backend",
+    "docker:observability": "docker compose --profile observability up -d"
   }
 }

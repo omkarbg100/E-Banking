@@ -1,72 +1,100 @@
+const crypto = require("crypto");
 const Webhook = require("../Models/Webhook");
+const WebhookDelivery = require("../Models/WebhookDelivery");
+const DeveloperAccount = require("../Models/DeveloperAccount");
+const asyncHandler = require("../Middleware/asyncHandler");
+const httpError = require("../Utils/httpError");
+const { enqueueWebhook } = require("../Infrastructure/queue");
+const { assertSafeUrl } = require("../Infrastructure/webhookDelivery");
 
-// Helper to fire webhooks
-exports.fireWebhook = async (merchantId, event, data) => {
+async function fireWebhook(merchantId, event, data) {
+  const webhook = await Webhook.findOne({ merchantId, isActive: true });
+  if (!webhook) return null;
+
+  const eventId = crypto.randomUUID();
+  const delivery = await WebhookDelivery.findOneAndUpdate(
+    { merchantId, eventId },
+    {
+      $setOnInsert: {
+        webhookId: webhook._id,
+        merchantId,
+        event,
+        eventId,
+        status: "PENDING"
+      }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
   try {
-    const webhook = await Webhook.findOne({ merchantId, isActive: true });
-    if (!webhook) return;
-
-    const payload = JSON.stringify({
+    await enqueueWebhook({
+      webhook,
       event,
       data,
-      timestamp: new Date().toISOString()
-    });
-
-    console.log(`Firing webhook for ${merchantId} to ${webhook.url} for event ${event}`);
-    
-    // We use Node's native fetch (available in Node 18+)
-    await fetch(webhook.url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-webhook-secret": webhook.secret
-      },
-      body: payload
+      eventId: delivery.eventId
     });
   } catch (error) {
-    console.error("Webhook firing failed:", error.message);
+    await WebhookDelivery.updateOne(
+      { _id: delivery._id },
+      { $set: { status: "FAILED", error: error.message } }
+    );
+    throw error;
   }
-};
 
-// Route: Register Webhook
-// Authenticated via standard dashboard auth -> user -> DeveloperAccount
-exports.registerWebhook = async (req, res) => {
-  try {
-    const { url, secret } = req.body;
-    
-    // Get merchantId from DeveloperAccount associated with req.user.id
-    const DeveloperAccount = require("../Models/DeveloperAccount");
-    const devAccount = await DeveloperAccount.findOne({ userId: req.user.id });
-    if (!devAccount) return res.status(404).json({ message: "Developer account not found" });
+  webhook.lastDeliveryAt = new Date();
+  await webhook.save({ validateModifiedOnly: true });
+  return delivery;
+}
 
-    let webhook = await Webhook.findOne({ merchantId: devAccount.merchantId });
-    if (webhook) {
-      webhook.url = url;
-      webhook.secret = secret;
-      await webhook.save();
-    } else {
-      webhook = await Webhook.create({
-        merchantId: devAccount.merchantId,
-        url,
-        secret
-      });
-    }
+const registerWebhook = asyncHandler(async (req, res) => {
+  const { url, secret } = req.body;
 
-    res.json({ success: true, webhook });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  const devAccount = await DeveloperAccount.findOne({ userId: req.user.id });
+  if (!devAccount) throw httpError(404, "Developer account not found");
+
+  await assertSafeUrl(url);
+
+  let webhook = await Webhook.findOne({ merchantId: devAccount.merchantId });
+  if (webhook) {
+    webhook.url = url;
+    webhook.secret = secret;
+    webhook.isActive = true;
+    webhook.failureCount = 0;
+    await webhook.save();
+  } else {
+    webhook = await Webhook.create({
+      merchantId: devAccount.merchantId,
+      url,
+      secret
+    });
   }
-};
 
-exports.getWebhook = async (req, res) => {
-    try {
-        const DeveloperAccount = require("../Models/DeveloperAccount");
-        const devAccount = await DeveloperAccount.findOne({ userId: req.user.id });
-        if (!devAccount) return res.status(404).json({ message: "Developer account not found" });
-    
-        let webhook = await Webhook.findOne({ merchantId: devAccount.merchantId });
-        res.json({ success: true, webhook });
-      } catch (error) {
-        res.status(500).json({ message: error.message });
-      }
+  res.json({ success: true, webhook });
+});
+
+const getWebhook = asyncHandler(async (req, res) => {
+  const devAccount = await DeveloperAccount.findOne({ userId: req.user.id });
+  if (!devAccount) throw httpError(404, "Developer account not found");
+
+  const webhook = await Webhook.findOne({ merchantId: devAccount.merchantId });
+  res.json({ success: true, webhook });
+});
+
+const getDeliveries = asyncHandler(async (req, res) => {
+  const devAccount = await DeveloperAccount.findOne({ userId: req.user.id });
+  if (!devAccount) throw httpError(404, "Developer account not found");
+
+  const deliveries = await WebhookDelivery.find({ merchantId: devAccount.merchantId })
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+
+  res.json({ success: true, deliveries });
+});
+
+module.exports = {
+  fireWebhook,
+  registerWebhook,
+  getWebhook,
+  getDeliveries
 };

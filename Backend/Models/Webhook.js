@@ -6,19 +6,28 @@ const webhookSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      index: true
     },
     url: {
       type: String,
-      required: true,
+      required: true
     },
     secret: {
       type: String,
-      required: true,
+      required: true
     },
     isActive: {
       type: Boolean,
       default: true,
+      index: true
     },
+    failureCount: {
+      type: Number,
+      default: 0
+    },
+    lastDeliveryAt: {
+      type: Date
+    }
   },
   { timestamps: true }
 );

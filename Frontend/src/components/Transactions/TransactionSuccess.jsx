@@ -70,7 +70,7 @@ export default function TransactionSuccess() {
             <div className="flex justify-between">
               <span className="text-white/60">Reference ID</span>
               <span className="text-xs">
-                TXN{Date.now().toString().slice(-8)}
+                {data.referenceId || "—"}
               </span>
             </div>
           </div>

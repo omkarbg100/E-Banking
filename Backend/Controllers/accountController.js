@@ -1,182 +1,150 @@
-const Account = require("../Models/Account");
-const Transaction = require("../Models/Transaction");
-const User = require("../Models/User");
-
-// ================= USER CONTROLLERS =================
-
 const crypto = require("crypto");
+const Account = require("../Models/Account");
+const asyncHandler = require("../Middleware/asyncHandler");
+const httpError = require("../Utils/httpError");
+const { getJSON, setJSON, cacheKey, invalidate } = require("../Infrastructure/redis");
+const { emitEvent } = require("../Infrastructure/events");
+const { TOPICS } = require("../Infrastructure/kafka");
 
-// helper function
-const generateAccountNumber = async () => {
-  let accountNumber;
-  let exists = true;
+const LIST_TTL_SECONDS = 30;
+const MAX_ACCOUNTS_PER_USER = 3;
 
-  while (exists) {
-    accountNumber =
-      "EB" +
-      new Date().getFullYear() +
-      crypto.randomInt(100000, 999999);
+function accountListCacheKey(userId) {
+  return cacheKey("accounts", "list", userId);
+}
 
-    exists = await Account.exists({ accountNumber });
+async function generateAccountNumber() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const accountNumber = `EB${new Date().getFullYear()}${crypto.randomInt(100000, 999999)}`;
+    const exists = await Account.exists({ accountNumber });
+    if (!exists) return accountNumber;
+  }
+  throw httpError(500, "Could not allocate an account number");
+}
+
+const createAccount = asyncHandler(async (req, res) => {
+  const existingAccounts = await Account.countDocuments({ userId: req.user.id });
+  if (existingAccounts >= MAX_ACCOUNTS_PER_USER) {
+    throw httpError(400, `Maximum ${MAX_ACCOUNTS_PER_USER} accounts allowed per user`);
   }
 
-  return accountNumber;
-};
+  const accountNumber = await generateAccountNumber();
+  const account = await Account.create({
+    userId: req.user.id,
+    accountNumber,
+    accountType: req.body.accountType || "SAVINGS",
+    balance: 0,
+    status: "ACTIVE"
+  });
 
-// ================= CREATE ACCOUNT (USER) =================
-const createAccount = async (req, res) => {
-  try {
-    const { accountType } = req.body;
-
-    if (!accountType) {
-      return res.status(400).json({ message: "Account type is required" });
-    }
-
-    // Optional: limit accounts per user
-    const existingAccounts = await Account.countDocuments({
+  await invalidate(accountListCacheKey(req.user.id));
+  await emitEvent(
+    TOPICS.TXN_COMPLETED,
+    {
+      event: "account.created",
       userId: req.user.id,
-    });
+      accountNumber: account.accountNumber
+    },
+    account.accountNumber
+  );
 
-    if (existingAccounts >= 3) {
-      return res
-        .status(400)
-        .json({ message: "Maximum 3 accounts allowed per user" });
-    }
+  res.status(201).json({ message: "Account created successfully", account });
+});
 
-    const accountNumber = await generateAccountNumber();
+const getMyAccountList = asyncHandler(async (req, res) => {
+  const cacheKeyName = accountListCacheKey(req.user.id);
+  const cached = await getJSON(cacheKeyName);
+  if (cached) return res.json(cached);
 
-    const account = await Account.create({
-      userId: req.user.id,
-      accountNumber,
-      accountType,
-      balance: 0,
-      status: "ACTIVE",
-    });
-
-    res.status(201).json({
-      message: "Account created successfully",
-      account,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  const accounts = await Account.find({ userId: req.user.id }).sort({ createdAt: 1 });
+  if (!accounts || accounts.length === 0) {
+    return res.status(404).json({ message: "No accounts found for this user" });
   }
-};
 
+  await setJSON(cacheKeyName, accounts, LIST_TTL_SECONDS);
+  res.json(accounts);
+});
 
-// Get all accounts of the logged-in user (list)
-const getMyAccountList = async (req, res) => {
-  try {
-    const accounts = await Account.find({ userId: req.user.id });
-    if (!accounts || accounts.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "No accounts found for this user" });
-    }
-    res.json(accounts);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+const getMyAccount = asyncHandler(async (req, res) => {
+  const account = await Account.findOne({
+    accountNumber: req.params.accountNumber,
+    userId: req.user.id
+  });
+  if (!account) throw httpError(404, "Account not found");
+  res.json(account);
+});
+
+const getAllAccounts = asyncHandler(async (req, res) => {
+  const accounts = await Account.find().populate("userId", "name email role").sort({ createdAt: -1 });
+  res.json(
+    accounts.map((account) => ({
+      ...account.toObject(),
+      user: account.userId
+        ? { name: account.userId.name, email: account.userId.email }
+        : { name: "Unknown", email: "" }
+    }))
+  );
+});
+
+const updateAccountStatus = asyncHandler(async (req, res) => {
+  const { accountNumber, status } = req.body;
+  const account = await Account.findOne({ accountNumber });
+  if (!account) throw httpError(404, "Account not found");
+
+  account.status = status;
+  await account.save();
+  await invalidate(accountListCacheKey(account.userId.toString()));
+  await emitEvent(TOPICS.ADMIN_ACTION, {
+    action: "ACCOUNT_STATUS_CHANGED",
+    accountNumber,
+    status,
+    adminId: req.user.id
+  });
+
+  res.json({ message: `Account status updated to ${status}`, account });
+});
+
+const UpdateAccountInfo = asyncHandler(async (req, res) => {
+  const allowed = ["accountType", "status"];
+  const updateFields = Object.fromEntries(
+    Object.entries(req.body).filter(([key]) => allowed.includes(key))
+  );
+
+  const account = await Account.findOneAndUpdate(
+    { accountNumber: req.params.accountNumber },
+    { $set: updateFields },
+    { new: true, runValidators: true }
+  );
+  if (!account) throw httpError(404, "Account not found");
+
+  await invalidate(accountListCacheKey(account.userId.toString()));
+  res.json({ message: "Account updated", account });
+});
+
+const deleteAccount = asyncHandler(async (req, res) => {
+  const account = await Account.findOne({ accountNumber: req.params.accountNumber });
+  if (!account) throw httpError(404, "Account not found");
+  if (Number(account.balance) !== 0) {
+    throw httpError(400, "Only zero-balance accounts can be deleted");
   }
-};
 
-// Get single account by accountNumber (logged-in user)
-const getMyAccount = async (req, res) => {
-  try {
-    const { accountNumber } = req.params;
+  await Account.deleteOne({ _id: account._id });
+  await invalidate(accountListCacheKey(account.userId.toString()));
+  await emitEvent(TOPICS.ADMIN_ACTION, {
+    action: "ACCOUNT_DELETED",
+    accountNumber: account.accountNumber,
+    adminId: req.user.id
+  });
 
-    const account = await Account.findOne({
-      accountNumber,
-      userId: req.user.id,
-    });
-
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    res.json(account);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// ================= ADMIN CONTROLLERS =================
-
-// Get all accounts (admin)
-const getAllAccounts = async (req, res) => {
-  try {
-    const accounts = await Account.find().populate("userId", "name email");
-    res.json(accounts);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Freeze/Unfreeze account (admin)
-const updateAccountStatus = async (req, res) => {
-  try {
-    const { accountNumber, status } = req.body;
-
-    if (!["ACTIVE", "FROZEN"].includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
-
-    const account = await Account.findOne({ accountNumber });
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    account.status = status;
-    await account.save();
-
-    res.json({ message: `Account status updated to ${status}` });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Update account info (admin)
-const UpdateAccountInfo = async (req, res) => {
-  try {
-    const { accountNumber } = req.params;
-    const updateFields = req.body;
-
-    const account = await Account.findOneAndUpdate(
-      { accountNumber },
-      updateFields,
-      { new: true }
-    );
-
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    res.json({ message: "Account updated", account });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// Delete account (simulation, admin)
-const deleteAccount = async (req, res) => {
-  try {
-    const { accountNumber } = req.params;
-
-    const account = await Account.findOneAndDelete({ accountNumber });
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
-
-    res.json({ message: "Account deleted (simulation)" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  res.json({ message: "Account deleted" });
+});
 
 module.exports = {
   getMyAccountList,
   getMyAccount,
-    createAccount,
+  createAccount,
   getAllAccounts,
   updateAccountStatus,
   UpdateAccountInfo,
-  deleteAccount,
+  deleteAccount
 };

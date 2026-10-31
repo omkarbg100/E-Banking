@@ -1,4 +1,5 @@
 const express = require("express");
+const { z } = require("zod");
 const router = express.Router();
 
 const {
@@ -8,23 +9,57 @@ const {
   createAccount,
   updateAccountStatus,
   UpdateAccountInfo,
-  deleteAccount,
+  deleteAccount
 } = require("../Controllers/accountController");
 
 const auth = require("../Middleware/authMiddleware");
 const role = require("../Middleware/roleMiddleware");
+const validate = require("../Middleware/validate");
 
+const accountNumber = z.string().trim().min(6).max(40);
 
-// Create new account
-router.post("/create", auth, role("USER"), createAccount);
+router.post(
+  "/create",
+  auth,
+  role("USER"),
+  validate({ body: z.object({ accountType: z.enum(["SAVINGS", "CURRENT"]).optional() }) }),
+  createAccount
+);
 router.get("/me/accountLists", auth, role("USER"), getMyAccountList);
-router.get("/me/:accountNumber", auth, role("USER"), getMyAccount);
+router.get("/me/:accountNumber", auth, role("USER"), validate({ params: z.object({ accountNumber }) }), getMyAccount);
 
-// ADMIN ROUTES
 router.get("/", auth, role("ADMIN"), getAllAccounts);
-router.put("/status", auth, role("ADMIN"), updateAccountStatus);
-router.put("/:accountNumber", auth, role("ADMIN"), UpdateAccountInfo);
-router.delete("/:accountNumber", auth, role("ADMIN"), deleteAccount);
-
+router.put(
+  "/status",
+  auth,
+  role("ADMIN"),
+  validate({
+    body: z.object({
+      accountNumber,
+      status: z.enum(["ACTIVE", "FROZEN", "CLOSED"])
+    })
+  }),
+  updateAccountStatus
+);
+router.put(
+  "/:accountNumber",
+  auth,
+  role("ADMIN"),
+  validate({
+    params: z.object({ accountNumber }),
+    body: z.object({
+      accountType: z.enum(["SAVINGS", "CURRENT"]).optional(),
+      status: z.enum(["ACTIVE", "FROZEN", "CLOSED"]).optional()
+    })
+  }),
+  UpdateAccountInfo
+);
+router.delete(
+  "/:accountNumber",
+  auth,
+  role("ADMIN"),
+  validate({ params: z.object({ accountNumber }) }),
+  deleteAccount
+);
 
 module.exports = router;

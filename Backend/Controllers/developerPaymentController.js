@@ -1,159 +1,118 @@
+const crypto = require("crypto");
+const QRCode = require("qrcode");
 const Account = require("../Models/Account");
 const DeveloperAccount = require("../Models/DeveloperAccount");
-const Transaction = require("../Models/Transaction");
-const QRCode = require("qrcode");
-const crypto = require("crypto");
+const asyncHandler = require("../Middleware/asyncHandler");
+const httpError = require("../Utils/httpError");
 
-// ==========================
-// API 1: CREATE DEVELOPER
-// ==========================
-exports.createDeveloper = async (req, res) => {
-  try {
-    const { developerName, accountNumber } = req.body;
+function hashSecret(secret) {
+  return crypto.createHash("sha256").update(secret).digest("hex");
+}
 
-    if (!developerName || !accountNumber) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
+const createDeveloper = asyncHandler(async (req, res) => {
+  const { developerName, accountNumber } = req.body;
 
-    // 1. Check account exists
-    const account = await Account.findOne({ accountNumber });
-    if (!account) {
-      return res.status(404).json({ message: "Account not found" });
-    }
+  const account = await Account.findOne({ accountNumber });
+  if (!account) throw httpError(404, "Account not found");
+  if (account.userId.toString() !== req.user.id) throw httpError(403, "Not your account");
+  if (account.status !== "ACTIVE") throw httpError(400, "Account is not active");
 
-    // 2. Check ownership
-    if (account.userId.toString() !== req.user.id) {
-      return res.status(403).json({ message: "Not your account" });
-    }
+  const existingDev = await DeveloperAccount.findOne({
+    $or: [{ accountNumber }, { userId: req.user.id }]
+  });
+  if (existingDev) throw httpError(409, "Developer account already exists");
 
-    // 3. Check account status
-    if (account.status !== "ACTIVE") {
-      return res.status(400).json({ message: "Account is not active" });
-    }
+  const merchantId = `MERCHANT_${Date.now()}`;
+  const publicKey = `pk_test_${crypto.randomBytes(8).toString("hex")}`;
+  const secretKey = `sk_test_${crypto.randomBytes(24).toString("hex")}`;
 
-    // 4. One developer per account
-    const existingDev = await DeveloperAccount.findOne({ accountNumber });
-    if (existingDev) {
-      return res
-        .status(400)
-        .json({ message: "Developer account already exists for this account" });
-    }
+  const developer = await DeveloperAccount.create({
+    userId: req.user.id,
+    developerName,
+    accountNumber,
+    merchantId,
+    publicKey,
+    secretKeyHash: hashSecret(secretKey),
+    secretKeyPreview: `${secretKey.slice(0, 12)}...${secretKey.slice(-4)}`
+  });
 
-    // 5. Generate IDs
-    const merchantId = "MERCHANT_" + Date.now();
-    const publicKey = "pk_test_" + Math.random().toString(36).substring(2, 12);
-    const secretKey = "sk_test_" + crypto.randomBytes(16).toString("hex");
+  const qrCode = await QRCode.toDataURL(JSON.stringify({ merchantId }));
 
-    // 6. Create developer
-    const developer = await DeveloperAccount.create({
-      userId: req.user.id,
-      developerName,
-      accountNumber,
-      merchantId,
-      publicKey,
-      secretKey,
-    });
-
-    // 7. Generate QR
-    const qrPayload = JSON.stringify({ merchantId });
-    const qrCode = await QRCode.toDataURL(qrPayload);
-
-    res.status(201).json({
-      success: true,
-      message: "Developer account created",
-      developer,
-      qrCode,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// const DeveloperAccount = require("../Models/DeveloperAccount");
-// const Account = require("../Models/Account");
-
-// ===============================
-// PUBLIC: Get Merchant Info (QR)
-// ===============================
-exports.getDeveloperPublicInfo = async (req, res) => {
-  try {
-    const { merchantId } = req.params;
-
-    if (!merchantId) {
-      return res.status(400).json({ message: "Merchant ID is required" });
-    }
-
-    // 1. Find developer account
-    const developer = await DeveloperAccount.findOne({ merchantId });
-    if (!developer) {
-      return res.status(404).json({ message: "Merchant not found" });
-    }
-
-    // 2. Get linked bank account (optional but useful)
-    const account = await Account.findOne({
-      accountNumber: developer.accountNumber,
-    });
-
-    if (!account || account.status !== "ACTIVE") {
-      return res
-        .status(400)
-        .json({ message: "Merchant account is not active" });
-    }
-
-    // 3. Send SAFE public data only
-    res.json({
-      success: true,
-      merchant: {
-        merchantId: developer.merchantId,
-        developerName: developer.developerName,
-        accountNumber: developer.accountNumber,
-      },
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
-
-// const DeveloperAccount = require("../Models/DeveloperAccount");
-//const QRCode = require("qrcode");
-
-// ===============================
-// AUTH: Get My Developer Account
-// ===============================
-exports.getMyDeveloperAccount = async (req, res) => {
-  try {
-    // 1. Find developer account by user
-    const developer = await DeveloperAccount.findOne({
-      userId: req.user.id,
-    });
-
-    if (!developer) {
-      return res
-        .status(404)
-        .json({ message: "Developer account not found" });
-    }
-
-    // 2. Regenerate QR (optional but useful)
-    const qrPayload = JSON.stringify({
+  res.status(201).json({
+    success: true,
+    message: "Developer account created. Store the secret key now — it will not be shown again.",
+    developer: {
+      developerName: developer.developerName,
       merchantId: developer.merchantId,
-    });
-    const qrCode = await QRCode.toDataURL(qrPayload);
+      publicKey: developer.publicKey,
+      secretKey,
+      secretKeyPreview: developer.secretKeyPreview,
+      accountNumber: developer.accountNumber,
+      createdAt: developer.createdAt
+    },
+    qrCode
+  });
+});
 
-    // 3. Respond
-    res.json({
-      success: true,
-      developer: {
-        developerName: developer.developerName,
-        merchantId: developer.merchantId,
-        publicKey: developer.publicKey,
-        secretKey: developer.secretKey,
-        accountNumber: developer.accountNumber,
-        createdAt: developer.createdAt,
-      },
-      qrCode,
-    });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
+const getDeveloperPublicInfo = asyncHandler(async (req, res) => {
+  const developer = await DeveloperAccount.findOne({ merchantId: req.params.merchantId, isActive: true });
+  if (!developer) throw httpError(404, "Merchant not found");
+
+  const account = await Account.findOne({ accountNumber: developer.accountNumber });
+  if (!account || account.status !== "ACTIVE") throw httpError(400, "Merchant account is not active");
+
+  res.json({
+    success: true,
+    merchant: {
+      merchantId: developer.merchantId,
+      developerName: developer.developerName,
+      accountNumber: developer.accountNumber
+    }
+  });
+});
+
+const getMyDeveloperAccount = asyncHandler(async (req, res) => {
+  const developer = await DeveloperAccount.findOne({ userId: req.user.id });
+  if (!developer) throw httpError(404, "Developer account not found");
+
+  const qrCode = await QRCode.toDataURL(JSON.stringify({ merchantId: developer.merchantId }));
+
+  res.json({
+    success: true,
+    developer: {
+      developerName: developer.developerName,
+      merchantId: developer.merchantId,
+      publicKey: developer.publicKey,
+      secretKeyPreview: developer.secretKeyPreview,
+      accountNumber: developer.accountNumber,
+      createdAt: developer.createdAt
+    },
+    qrCode
+  });
+});
+
+const regenerateSecret = asyncHandler(async (req, res) => {
+  const developer = await DeveloperAccount.findOne({ userId: req.user.id });
+  if (!developer) throw httpError(404, "Developer account not found");
+
+  const secretKey = `sk_test_${crypto.randomBytes(24).toString("hex")}`;
+  developer.secretKeyHash = hashSecret(secretKey);
+  developer.secretKeyPreview = `${secretKey.slice(0, 12)}...${secretKey.slice(-4)}`;
+  developer.secretKey = undefined;
+  await developer.save();
+
+  res.json({
+    success: true,
+    message: "Secret key rotated. Update your integration now.",
+    secretKey,
+    secretKeyPreview: developer.secretKeyPreview
+  });
+});
+
+module.exports = {
+  createDeveloper,
+  getDeveloperPublicInfo,
+  getMyDeveloperAccount,
+  regenerateSecret,
+  hashSecret
 };

@@ -80,7 +80,7 @@ const DeveloperPage = () => {
              setWebhookData(hooks.data.webhook);
              setWebhookForm({ url: hooks.data.webhook.url, secret: hooks.data.webhook.secret });
            }
-         } catch(e) { } // ignore
+         } catch { /* no webhook configured yet */ }
       }
 
       if (!res.data.developer && accountNumber) {
@@ -201,7 +201,16 @@ const DeveloperPage = () => {
                      <p className="text-sm text-slate-400 mb-2">Use your keys to authenticate server requests. <span className="text-pink-400">Never share your secret key publicly.</span></p>
                      
                      <SecretBox label="Public Key" value={developer.publicKey} isSecret={false} />
-                     <SecretBox label="Secret Key" value={developer.secretKey} isSecret={true} />
+                     <SecretBox
+                       label={developer.secretKey ? "Secret Key (copy now)" : "Secret Key Preview"}
+                       value={developer.secretKey || developer.secretKeyPreview || "Not available"}
+                       isSecret={true}
+                     />
+                     {!developer.secretKey && (
+                       <p className="text-xs text-amber-300/80">
+                         The full secret key is only shown once at creation. Rotate it from the API if lost.
+                       </p>
+                     )}
                   </div>
 
                   <div className="flex flex-col md:flex-row items-center gap-6 bg-blue-500/10 border border-blue-500/20 p-6 rounded-2xl mt-4 relative overflow-hidden">

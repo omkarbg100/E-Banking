@@ -6,54 +6,58 @@ const transactionSchema = new mongoose.Schema(
       type: String,
       unique: true,
       required: true,
+      index: true
     },
-
+    idempotencyKey: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true
+    },
     fromAccount: {
       type: String,
       default: null,
+      index: true
     },
-
     toAccount: {
       type: String,
       default: null,
+      index: true
     },
-
     amount: {
       type: Number,
       required: true,
-      min: 1,
+      min: 0.01
     },
-
     type: {
       type: String,
-      enum: ["CREDIT", "DEBIT", "TRANSFER", "ADMIN_ADJUST"],
-      required: true,
+      enum: ["CREDIT", "DEBIT", "TRANSFER", "ADMIN_ADJUST", "REFUND"],
+      required: true
     },
-
     initiatedBy: {
       type: String,
-      enum: ["USER", "ADMIN"],
-      required: true,
+      enum: ["USER", "ADMIN", "SYSTEM"],
+      required: true
     },
-
     status: {
       type: String,
-      enum: ["SUCCESS", "FAILED"],
+      enum: ["SUCCESS", "FAILED", "PENDING"],
       default: "SUCCESS",
+      index: true
     },
-
     balanceAfterTransaction: {
-      type: Number,
+      type: Number
     },
-
     description: {
       type: String,
-    },
+      maxlength: 500
+    }
   },
   { timestamps: true }
 );
 
-transactionSchema.index({ fromAccount: 1 });
-transactionSchema.index({ toAccount: 1 });
+transactionSchema.index({ createdAt: -1 });
+transactionSchema.index({ fromAccount: 1, createdAt: -1 });
+transactionSchema.index({ toAccount: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Transaction", transactionSchema);
