@@ -1,0 +1,23 @@
+{
+  "name": "ebank-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-grade microservices E-Banking platform",
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test tests/unit",
+    "smoke": "node scripts/smoke-test.js",
+    "docker:up": "docker compose --profile core up -d --build",
+    "docker:down": "docker compose down -v",
+    "docker:observability": "docker compose --profile core --profile observability up -d --build"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

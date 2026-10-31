@@ -1,0 +1,9 @@
+{
+  "name": "@ebank/contracts",
+  "version": "1.0.0",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}
